@@ -1,5 +1,6 @@
 const {contextBridge, ipcRenderer} = require('electron');
 
 contextBridge.exposeInMainWorld('ipcRenderer', {
-  invoke: (channel, data) => ipcRenderer.invoke(channel, data)
+  saveFile: (buffer, totalTime) => ipcRenderer.invoke("save-file", { buffer, totalTime }),
+  sources: () => ipcRenderer.invoke("sources")
 });

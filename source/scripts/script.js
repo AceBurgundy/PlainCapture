@@ -17,7 +17,7 @@ const sourcesELement = getById('sources');
  */
 async function getSources() {
   try {
-    return await window.ipcRenderer.invoke('sources');
+    return await window.ipcRenderer.sources();
   } catch (error) {
     console.error('Error retrieving video sources:', error);
     makeToastNotification('No video sources found');

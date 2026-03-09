@@ -115,9 +115,7 @@ export default class ScreenRecorder {
       const buffer = await blob.arrayBuffer();
 
       try {
-        await window.ipcRenderer.invoke('save-file', {
-          buffer, totalTime
-        });
+        await window.ipcRenderer.saveFile(buffer, totalTime);
 
         saved = true;
       } catch (error) {

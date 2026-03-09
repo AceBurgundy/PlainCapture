@@ -29,9 +29,8 @@ const createWindow = async () => {
     width: defaultWidth,
     // autoHideMenuBar: true,
     webPreferences: {
-      nodeIntegration: true,
+      nodeIntegration: false,
       preload: join(__dirname, 'preload.js'),
-      devTools: true
     },
     icon
   });
