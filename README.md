@@ -19,7 +19,7 @@
 
 ### Option 1: Prebuilt binaries (Coming soon)
 
-> You’ll be able to download builds for Windows, macOS, and Linux from the [Releases](#) page.
+> You’ll be able to download builds for Windows from the [Releases](#) page.
 
 ### Option 2: Run from source
 
@@ -32,7 +32,7 @@ npm start
 
 ## 📁 Output
 
-Recordings are saved automatically to your system's **Videos** folder (or a user-defined path, if configured), in `.webm` format.
+Recordings are saved automatically to a **Recorded** folder (or a user-defined path, if configured), in `.webm` format.
 
 ## 🧩 Tech Stack
 
@@ -63,7 +63,7 @@ PlainCapture is a simple utility tool and does not support advanced features lik
 
 ## 📄 License
 
-MIT License
+Licensed under the **Mozilla Public License 2.0**.
 
 ## 🙌 Contributions
 
