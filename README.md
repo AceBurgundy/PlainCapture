@@ -24,7 +24,7 @@
 ### Option 2: Run from source
 
 ```bash
-git clone https://github.com/yourusername/plaincapture.git
+git clone https://github.com/AceBurgundy/plaincapture.git
 cd plaincapture
 npm install
 npm start
