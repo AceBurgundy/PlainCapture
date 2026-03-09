@@ -1,85 +1,87 @@
-import Stopwatch from './Stopwatch.js';
-import Backdrop from './Backdrop.js';
+import Stopwatch from "./Stopwatch.js";
+import Backdrop from "./Backdrop.js";
+
 /**
- * Represents a class for recording and saving media streams.
- * @class
- * @export default
+ * Screen recording manager that coordinates the MediaRecorder API,
+ * a visual countdown timer, and IPC-based file saving.
  */
 export default class ScreenRecorder {
   /**
-   * Creates an instance of the MediaRecorderManager.
-   * @constructor
-   * @param {MediaStream} stream - The media stream to be recorded.
-   * @param {Object} options - Options for the MediaRecorder.
-   * @param {string} [backdropElementId='backdrop'] the id for the backdrop element
-   * @throws {Error} Throws an error if stream or options are missing.
+   * Create a new ScreenRecorder instance.
+   *
+   * @param {MediaStream} stream - The mixed media stream to record.
+   * @param {MediaRecorderOptions} options - Configuration for the MediaRecorder (mimeType, bitsPerSecond).
+   * @param {string} [backdropElementId="backdrop"] - The ID of the DOM element used for the recording backdrop.
+   * @throws {Error} If stream or options are missing.
    */
-  constructor(stream, options, backdropElementId='backdrop') {
-    if (!stream || !options) throw new Error('Missing parameters');
+  constructor(stream, options, backdropElementId = "backdrop") {
+    if (!stream || !options) {
+      throw new Error("Missing parameters: ScreenRecorder requires a stream and options.");
+    }
 
-    /**
-     * @type {MediaRecorder}
-     */
+    /** @type {MediaRecorder} */
     const mediaRecorder = new MediaRecorder(stream, options);
 
-    /**
-     * @type {Backdrop}
-     */
-    const backdrop = new Backdrop(backdropElementId);
+    /** @type {Backdrop} */
+    const backdropManager = new Backdrop(backdropElementId);
+
+    /** @type {Stopwatch} */
+    const recordingTimer = new Stopwatch();
 
     /**
-     * @type {Stopwatch}
+     * Enum for recording states.
+     * @readonly
+     * @enum {string}
      */
-    const timer = new Stopwatch();
-
-    /**
-     * @type {ArrayBuffer[]}
-     */
-    const recordedChunks = [];
-
     this.states = {
-      RECORDING: 'RECORDING',
-      WAITING: 'WAITING',
-      PAUSED: 'PAUSED'
+      RECORDING: "RECORDING",
+      WAITING: "WAITING",
+      PAUSED: "PAUSED"
     };
 
-    /**
-     * @type {string}
-     */
+    /** @type {string} */
     this.state = this.states.WAITING;
 
     /**
-     * Event handler for recording stream data.
-     * @private
-     * @param {MediaRecorder} event - The MediaRecorder event containing recorded data.
+     * Handles the dataavailable event by converting blobs to ArrayBuffers
+     * and sending them to the main process via IPC.
+     *
+     * @param {BlobEvent} event - The event containing the recorded data chunk.
      */
-    const recordStream = event => {
-      recordedChunks.push(event.data);
+    const handleDataAvailable = async (event) => {
+      if (!event.data || event.data.size === 0) return;
+
+      const dataBuffer = await event.data.arrayBuffer();
+
+      // Write the chunk to the file system via the Electron IPC bridge
+      window.ipcRecorder.writeChunk(dataBuffer);
     };
 
     /**
-     * Starts a countdown
-     * @public
-     * @return {Promise<Boolean>} true if the countdown has been completed
+     * Displays a visual countdown overlay before recording starts.
+     *
+     * @returns {Promise<boolean>} Resolves to true when the countdown finishes.
      */
-    const startCountDown = () => {
-      backdrop.generateBackdrop();
-      const holder = document.createElement('p');
-      holder.id = 'countdown';
-      document.body.appendChild(holder);
+    const runStartCountdown = () => {
+      backdropManager.generateBackdrop();
 
-      let countdownCount = 5;
+      const countdownDisplay = document.createElement("p");
+      countdownDisplay.id = "countdown";
+      document.body.appendChild(countdownDisplay);
 
-      return new Promise(resolve => {
+      let currentCount = 5;
+
+      return new Promise((resolve) => {
         const intervalId = setInterval(() => {
-          holder.textContent = countdownCount;
-          countdownCount--;
+          countdownDisplay.textContent = currentCount.toString();
+          currentCount--;
 
-          if (countdownCount < 0) {
+          if (currentCount < 0) {
             clearInterval(intervalId);
-            backdrop.hideBackdrop();
 
-            holder.remove();
+            backdropManager.hideBackdrop();
+            countdownDisplay.remove();
+
             resolve(true);
           }
         }, 1000);
@@ -87,88 +89,92 @@ export default class ScreenRecorder {
     };
 
     /**
-     * Starts the recording
-     * @private
+     * Initializes the file save path and starts the MediaRecorder.
      */
-    const startRecording = () => {
-      mediaRecorder.start(200);
+    const beginRecordingProcess = async () => {
+      await window.ipcRecorder.startSave();
+
+      mediaRecorder.ondataavailable = handleDataAvailable;
+
+      // Request data chunks every 2000ms (2 seconds)
+      mediaRecorder.start(2000);
+
       this.state = this.states.RECORDING;
-      mediaRecorder.ondataavailable = recordStream;
-      timer.start();
+      recordingTimer.start();
     };
 
     /**
-     * Saves the recorded data.
-     * @private
-     * @async
-     * @param {MediaRecorder} event - The MediaRecorderEvent triggered when recording stops.
-     * @param {number} totalTime - The total duration.
-     * @return {Promise<void>} A promise that resolves when the data is saved.
+     * Signals the main process to finalize the video file and reset state.
+     *
+     * @param {number} totalTime - The total duration of the recording in seconds.
+     * @returns {Promise<boolean>} True if the save was successful.
      */
-    const save = async (event, totalTime) => {
-      let saved = false;
-
-      const blob = new Blob(recordedChunks, {
-        type: 'video/webm; codecs=vp9'
-      });
-
-      const buffer = await blob.arrayBuffer();
+    const finalizeFileSave = async (totalTime) => {
+      let isSaved = false;
 
       try {
-        await window.ipcRenderer.saveFile(buffer, totalTime);
-
-        saved = true;
+        await window.ipcRecorder.stopSave(totalTime);
+        isSaved = true;
       } catch (error) {
-        console.error(error.message);
+        console.error(`Finalize save error: ${error.message}`);
       }
 
       mediaRecorder.ondataavailable = null;
-      recordedChunks.length = 0;
       this.state = this.states.WAITING;
-      return saved;
+
+      return isSaved;
     };
 
     /**
-     * Starts or resumes recording.
-     * @public
-     * @param {boolean} [countdown=false] - If a countdown is permitter before starting
+     * Starts or resumes the recording.
+     *
+     * @param {boolean} useCountdown - Whether to show the countdown before starting.
      */
-    this.play = (countdown=false) => {
+    this.play = (useCountdown) => {
       if (this.state === this.states.WAITING) {
-        if (!countdown) {
-          startRecording();
+        if (!useCountdown) {
+          beginRecordingProcess();
           return;
         }
 
-        startCountDown().then(() => startRecording());
+        runStartCountdown().then(() => beginRecordingProcess());
         return;
       }
 
       if (this.state === this.states.PAUSED) {
         mediaRecorder.resume();
-        timer.continue();
+        recordingTimer.continue();
         this.state = this.states.RECORDING;
       }
     };
 
     /**
-     * Stops the recording and triggers the save process.
-     * @public
+     * Stops the recording and triggers the file finalization process.
+     *
+     * @returns {Promise<boolean>} Resolves with the success status of the save operation.
      */
-    this.stop = async () => {
-      mediaRecorder.stop();
-      const totalTime = timer.stop();
-      return mediaRecorder.onstop = event => save(event, totalTime);
+    this.stop = () => {
+      return new Promise((resolve) => {
+        const recordedDuration = recordingTimer.stop();
+
+        mediaRecorder.onstop = async () => {
+          const success = await finalizeFileSave(recordedDuration);
+          resolve(success);
+        };
+
+        mediaRecorder.stop();
+      });
     };
 
     /**
-     * Pauses the recording.
+     * Pauses the current recording session and the internal timer.
      */
     this.pause = () => {
       if (this.state !== this.states.RECORDING) return;
 
       mediaRecorder.pause();
-      timer.pause();
+      recordingTimer.pause();
+
       this.state = this.states.PAUSED;
     };
   }

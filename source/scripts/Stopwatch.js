@@ -1,5 +1,7 @@
 /**
  * Stopwatch class to measure elapsed time.
+ * This implementation uses closure-based private variables within the constructor
+ * to manage state.
  */
 export default class Stopwatch {
   /**
@@ -7,7 +9,7 @@ export default class Stopwatch {
    */
   constructor() {
     /**
-     * Time when the stopwatch started or resumed.
+     * Time when the stopwatch started or resumed (in milliseconds).
      * @type {number}
      */
     let startTime = 0;
@@ -16,7 +18,7 @@ export default class Stopwatch {
      * Indicates whether the stopwatch is currently running.
      * @type {boolean}
      */
-    let running = false;
+    let isRunning = false;
 
     /**
      * Elapsed time in milliseconds.
@@ -26,18 +28,23 @@ export default class Stopwatch {
 
     /**
      * Interval ID for the setInterval function.
-     * @type {?number}
+     * @type {number | null}
      */
-    let interval = null;
+    let updateInterval = null;
 
     /**
      * Start the stopwatch.
+     * * If the stopwatch is not already running, it captures the current timestamp
+     * and begins an interval to update the elapsed time.
+     * * @returns {void}
      */
     this.start = () => {
-      if (!running) {
+      if (!isRunning) {
+        // Adjust startTime to account for previously accumulated elapsed time
         startTime = Date.now() - elapsedTime;
-        running = true;
-        interval = setInterval(() => {
+        isRunning = true;
+
+        updateInterval = setInterval(() => {
           elapsedTime = Date.now() - startTime;
         }, 1000);
       }
@@ -45,34 +52,51 @@ export default class Stopwatch {
 
     /**
      * Pause the stopwatch.
+     * * Stops the interval timer but preserves the current elapsed time.
+     * * @returns {void}
      */
     this.pause = () => {
-      if (running) {
-        clearInterval(interval);
-        running = false;
+      if (isRunning) {
+        if (updateInterval) {
+          clearInterval(updateInterval);
+        }
+        isRunning = false;
       }
     };
 
     /**
      * Resume the stopwatch if paused.
+     * * A wrapper for the start method to maintain logical clarity for 
+     * continuing a paused session.
+     * * @returns {void}
      */
     this.continue = () => {
-      if (!running) {
-        start();
+      if (!isRunning) {
+        this.start();
       }
     };
 
     /**
-     * Stop the stopwatch and reset.
+     * Stop the stopwatch and reset all internal values.
      *
-     * @return {number} The total duration.
+     * @returns {number} The total duration accumulated before the reset in seconds.
      */
     this.stop = () => {
-      clearInterval(interval);
-      running = false;
-      const totalTime = elapsedTime;
+      if (updateInterval) {
+        clearInterval(updateInterval);
+      }
+      
+      isRunning = false;
+      
+      // Store the final duration before resetting
+      const totalDurationInMilliseconds = elapsedTime;
+      
+      // Reset state
       elapsedTime = 0;
-      return totalTime / 1000; // to convert to seconds
+      startTime = 0;
+      
+      // Convert milliseconds to seconds
+      return totalDurationInMilliseconds / 1000;
     };
   }
 }

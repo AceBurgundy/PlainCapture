@@ -1,52 +1,64 @@
 /**
- * Represents a class for managing backdrop elements.
- * @class
- * @export default
+ * Manages the visual backdrop overlay for the application.
+ * Used primarily to block user interaction and provide a background for the countdown.
  */
 export default class Backdrop {
   /**
    * Creates an instance of the Backdrop manager.
-   * @constructor
-   * @param {string} backdropId - The id of the backdrop element.
+   * * @param {string} backdropId - The unique identifier for the backdrop DOM element.
    */
   constructor(backdropId) {
     /**
-     * @type {HTMLDivElement}
-     */
-    this.backdrop = document.getElementById('backdrop');
-
-    /**
+     * The unique identifier for the backdrop element.
      * @type {string}
      */
     this.backdropId = backdropId;
+
+    /**
+     * The cached reference to the backdrop DOM element.
+     * @type {HTMLElement | null}
+     */
+    this.backdropElement = document.getElementById(this.backdropId);
   }
 
   /**
-   * Inserts a new div with an id of backdrop,
-   * which shows a black empty div that covers the entire screen.
+   * Generates or activates the backdrop overlay.
+   * * Disables pointer events on the body to prevent user interaction,
+   * then either activates an existing backdrop or creates a new one.
+   * * @returns {void}
    */
   generateBackdrop() {
-    document.body.style.pointerEvents = 'none';
+    // Disable all mouse and touch interactions on the page
+    document.body.style.pointerEvents = "none";
 
-    if (this.backdrop) {
-      this.backdrop.classList.add('active');
+    if (this.backdropElement) {
+      this.backdropElement.classList.add("active");
       return;
     }
 
-    const newBackdrop = document.createElement('div');
-    newBackdrop.className = 'active';
+    // Create a new backdrop element if it doesn't exist
+    const newBackdrop = document.createElement("div");
+    newBackdrop.className = "active";
     newBackdrop.id = this.backdropId;
 
     document.body.appendChild(newBackdrop);
-    this.backdrop = newBackdrop;
+    this.backdropElement = newBackdrop;
   }
 
   /**
-   * Hides the backdrop element by removing its active class.
+   * Hides the backdrop element and restores page interaction.
+   * * Removes the 'active' class from the backdrop and re-enables pointer events.
+   * * @returns {void}
    */
   hideBackdrop() {
-    const backdrop = document.getElementById('backdrop');
-    if (backdrop) backdrop.classList.remove('active');
-    document.body.style.pointerEvents = 'all';
+    // Re-query or use cache to find the backdrop
+    const activeBackdrop = document.getElementById(this.backdropId);
+    
+    if (activeBackdrop) {
+      activeBackdrop.classList.remove("active");
+    }
+    
+    // Restore all mouse and touch interactions on the page
+    document.body.style.pointerEvents = "all";
   }
 }

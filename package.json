@@ -1,6 +1,6 @@
 {
-  "name": "plaincap",
-  "productName": "PlainCap",
+  "name": "plaincapture",
+  "productName": "PlainCapture",
   "version": "1.0.0",
   "description": "A simple and quick screen recorder",
   "main": "source/index.js",

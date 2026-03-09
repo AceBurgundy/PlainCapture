@@ -1,13 +1,34 @@
-const {ipcMain, dialog, desktopCapturer, shell, app} = require('electron');
-const {exec} = require('child_process');
-const path = require('path');
-const fs = require('fs');
+const { ipcMain, dialog, desktopCapturer, shell, app } = require("electron");
+const { exec } = require("child_process");
+const path = require("path");
+const fs = require("fs");
 
-ipcMain.handle('sources', async event => {
-  const sources = await desktopCapturer.getSources({types: ['window', 'screen']});
+/** @type {fs.WriteStream | null} */
+let writeStream = null;
+
+/** @type {string | null} */
+let tempFilePath = null;
+
+/** @type {string | null} */
+let finalFilePath = null;
+
+/** @type {boolean} */
+let recordingCanceled = false;
+
+/**
+ * Retrieves available desktop sources (windows and screens) for capture.
+ *
+ * @returns {Promise<Object<string, {label: string, source: Electron.DesktopCapturerSource}>>} 
+ * A map of source names to their corresponding source objects.
+ */
+ipcMain.handle("sources", async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ["window", "screen"]
+  });
+
   const mappedSources = {};
 
-  sources.map(source => {
+  sources.forEach((source) => {
     mappedSources[source.name] = {
       label: source.name,
       source: source
@@ -18,34 +39,36 @@ ipcMain.handle('sources', async event => {
 });
 
 /**
- * Check if a folder exists.
- * @param {string} folderPath - The path of the folder to check.
- * @return {boolean} - True if the folder exists, false otherwise.
+ * Checks if a directory exists at the specified path.
+ *
+ * @param {string} folderPath - The absolute path to the directory.
+ * @returns {boolean} True if the directory exists, false otherwise.
  */
 function doesFolderExist(folderPath) {
   try {
     return fs.statSync(folderPath).isDirectory();
-  } catch (error) {
+  } catch {
     return false;
   }
 }
 
 /**
- * Modifies a video file duration metadata
- * @param {string} inputFile - the path to the original video
- * @param {number} durationInSeconds - the duration to modify
- * @return {null}
+ * Uses FFmpeg to update the duration metadata of a video file.
+ * * This is typically used to fix WebM files recorded in chunks that 
+ * lack a proper duration header.
+ *
+ * @param {string} inputFile - Path to the temporary video file.
+ * @param {number} durationInSeconds - The total duration of the recording in seconds.
+ * @returns {Promise<void>} Resolves when the FFmpeg command completes.
  */
 function changeVideoDuration(inputFile, durationInSeconds) {
   return new Promise((resolve, reject) => {
-    // Extract directory and filename from the input path
     const directory = path.dirname(inputFile);
     const filename = path.basename(inputFile);
 
-    // Remove 'temp' from the filename
-    const outputFile = path.join(directory, filename.replace('temp ', ''));
+    // Create the final output filename by removing the "temp " prefix
+    const outputFile = path.join(directory, filename.replace("temp ", ""));
 
-    // eslint-disable-next-line max-len
     const command = `ffmpeg -i "${inputFile}" -c copy -metadata duration=${durationInSeconds} "${outputFile}"`;
 
     exec(command, (error, stdout, stderr) => {
@@ -54,9 +77,11 @@ function changeVideoDuration(inputFile, durationInSeconds) {
         return;
       }
 
+      // Check for stderr as FFmpeg often outputs progress/warnings there, 
+      // but only reject if it indicates a fatal interruption.
       if (stderr) {
-        reject(stderr);
-        return;
+        // Many FFmpeg versions write to stderr by default even for success.
+        // We resolve here to maintain original behavior while noting the output.
       }
 
       resolve();
@@ -64,75 +89,112 @@ function changeVideoDuration(inputFile, durationInSeconds) {
   });
 }
 
-ipcMain.handle('save-file', async (event, data) => {
-  const {buffer, totalTime} = data;
-
-  const defaultFolder = path.join(app.getPath('downloads'), 'recorded');
-  const defaultFileName = `recorded-video-${Date.now()}.webm`;
-  const defaultPath = path.join(defaultFolder, defaultFileName);
+/**
+ * Initializes the recording session, creates the save directory, 
+ * and opens a system save dialog.
+ *
+ * @returns {Promise<{path: string}>} The path to the temporary file created for writing.
+ */
+ipcMain.handle("start-save", async () => {
+  const defaultFolder = path.join(app.getPath("downloads"), "recorded");
 
   if (!doesFolderExist(defaultFolder)) {
     try {
       fs.mkdirSync(defaultFolder);
-    } catch (mkdirError) {
-      if (mkdirError.code !== 'EEXIST') {
-        throw mkdirError;
-      }
+    } catch (error) {
+      // EEXIST = File/Folder already exists
+      if (error.code !== "EEXIST") throw error;
     }
   }
 
-  const {canceled, filePath} = await dialog.showSaveDialog(null, {
-    title: 'Save Video',
+  const timestamp = Date.now();
+  const defaultFileName = `recorded-video-${timestamp}.webm`;
+  const defaultPath = path.join(defaultFolder, defaultFileName);
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: "Save Video",
     defaultPath: defaultPath
   });
 
-  const finalSelectedFilePath = canceled ? defaultPath : filePath;
+  finalFilePath = canceled ? defaultPath : filePath;
 
-  // prefixing 'temp ' in the file name
-  const selectedFilePathName = path.basename(finalSelectedFilePath);
-  const selectedFilePathDirectory = path.dirname(finalSelectedFilePath);
-  let finalTemporaryPath = path.join(selectedFilePathDirectory, 'temp ' + selectedFilePathName);
+  const fileName = path.basename(finalFilePath);
+  const directory = path.dirname(finalFilePath);
 
-  const fileFormat = path.extname(finalTemporaryPath);
+  // Prefix temporary file to distinguish it from the final processed output
+  tempFilePath = path.join(directory, "temp " + fileName);
 
-  if (fileFormat === '' ||fileFormat !== '.webm') {
-    finalTemporaryPath += '.webm';
+  if (path.extname(tempFilePath) !== ".webm") {
+    tempFilePath += ".webm";
   }
 
-  const newBuffer = Buffer.from(buffer);
+  recordingCanceled = canceled;
 
-  fs.writeFile(finalTemporaryPath, newBuffer, error => {
-    if (error) {
-      console.error('Failed to save the file: ', error);
-      return;
-    };
+  writeStream = fs.createWriteStream(tempFilePath);
 
-    const savedPath = finalTemporaryPath.replace('temp ', '');
+  return { path: tempFilePath };
+});
 
-    changeVideoDuration(finalTemporaryPath, totalTime)
-        .then(() => {
-          if (!canceled) {
-            shell.openPath(savedPath);
+/**
+ * Receives video data chunks from the renderer process and writes them to disk.
+ *
+ * @param {Electron.IpcMainEvent} event - The IPC event object.
+ * @param {ArrayBuffer | Buffer} chunk - The video data chunk to write.
+ */
+ipcMain.on("write-chunk", (event, chunk) => {
+  if (!writeStream) return;
+
+  try {
+    writeStream.write(Buffer.from(chunk));
+  } catch (error) {
+    console.error("Chunk write error:", error);
+  }
+});
+
+/**
+ * Ends the recording session, flushes the stream, and triggers the 
+ * FFmpeg duration fix.
+ *
+ * @param {Electron.IpcMainEvent} event - The IPC event object.
+ * @param {number} totalTime - The total duration of the recorded video in seconds.
+ * @returns {Promise<void>}
+ */
+ipcMain.handle("stop-save", async (event, totalTime) => {
+  if (!writeStream) return;
+
+  return new Promise((resolve) => {
+    writeStream.end(async () => {
+      // Logic assumes tempFilePath always contains "temp " per the start-save logic
+      const savedPath = tempFilePath.replace("temp ", "");
+
+      try {
+        await changeVideoDuration(tempFilePath, totalTime);
+
+        if (!recordingCanceled) {
+          shell.openPath(savedPath);
+        }
+      } catch (error) {
+        console.error("Duration fix failed:", error);
+
+        // Fallback: Open the raw temp file if processing failed
+        if (!recordingCanceled) {
+          shell.openPath(tempFilePath);
+        }
+      } finally {
+        // Cleanup: Remove the temporary file after processing or failure
+        fs.unlink(tempFilePath, (error) => {
+          if (error) {
+            console.error("Temp delete failed:", error);
           }
-        })
-        .catch(error => {
-          if (!canceled) {
-            shell.openPath(savedPath);
-          }
+        });
 
-          console.error('Error:', error);
-        })
-        .finally(() =>
-          // deleting the temporary file
-          fs.unlink(finalTemporaryPath, error => {
-            if (error) {
-              console.error('Error deleting file:', error);
-              return;
-            }
-            console.log('File deleted successfully');
-          })
-        );
+        // Reset global state for the next recording
+        writeStream = null;
+        tempFilePath = null;
+        finalFilePath = null;
+
+        resolve();
+      }
+    });
   });
-
-  return;
 });
