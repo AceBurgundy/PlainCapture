@@ -2,8 +2,6 @@
 
 **PlainCapture** is a minimal, no-frills screen recording app built with Electron. It’s designed for users who just want to **hit record and get the work done** — no complex setups, no bloated interfaces.
 
----
-
 ## 🚀 Features
 
 * 🎥 Simple screen recording (entire screen or window)
@@ -13,13 +11,9 @@
 * ⚡️ Lightweight and fast — built on Electron
 * 🛠️ Cross-platform (Windows, macOS, Linux)
 
----
-
 ## 🖥️ Screenshot
 
 ![UI](image.png)
-
----
 
 ## 🛠 Installation
 
@@ -36,21 +30,15 @@ npm install
 npm start
 ```
 
----
-
 ## 📁 Output
 
 Recordings are saved automatically to your system's **Videos** folder (or a user-defined path, if configured), in `.webm` format.
-
----
 
 ## 🧩 Tech Stack
 
 * [Electron](https://electronjs.org/)
 * JavaScript / Node.js
 * Native MediaRecorder APIs
-
----
 
 ## 📝 Usage
 
@@ -62,8 +50,6 @@ Recordings are saved automatically to your system's **Videos** folder (or a user
 
 That's it. No fuss.
 
----
-
 ## 🧳 Use Case Examples
 
 * Quick demo recordings
@@ -71,24 +57,14 @@ That's it. No fuss.
 * Simple tutorial capture
 * Clean screen recordings for developers and testers
 
----
-
 ## 🛡️ Disclaimer
 
 PlainCapture is a simple utility tool and does not support advanced features like video editing, trimming, or cloud uploads. It’s intentionally **minimal**.
-
----
 
 ## 📄 License
 
 MIT License
 
----
-
 ## 🙌 Contributions
 
 Contributions are welcome! If you'd like to help improve PlainCapture, feel free to fork the repo and submit a pull request.
-
----
-
-Let me know if you'd like a version that includes instructions for packaging the Electron app, or an extended version with GIF demos.
