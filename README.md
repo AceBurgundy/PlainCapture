@@ -1,6 +1,6 @@
-# 📹 PlainCap
+# 📹 PlainCapture
 
-**PlainCap** is a minimal, no-frills screen recording app built with Electron. It’s designed for users who just want to **hit record and get the work done** — no complex setups, no bloated interfaces.
+**PlainCapture** is a minimal, no-frills screen recording app built with Electron. It’s designed for users who just want to **hit record and get the work done** — no complex setups, no bloated interfaces.
 
 ---
 
@@ -30,8 +30,8 @@
 ### Option 2: Run from source
 
 ```bash
-git clone https://github.com/yourusername/plaincap.git
-cd plaincap
+git clone https://github.com/yourusername/plaincapture.git
+cd plaincapture
 npm install
 npm start
 ```
@@ -75,7 +75,7 @@ That's it. No fuss.
 
 ## 🛡️ Disclaimer
 
-PlainCap is a simple utility tool and does not support advanced features like video editing, trimming, or cloud uploads. It’s intentionally **minimal**.
+PlainCapture is a simple utility tool and does not support advanced features like video editing, trimming, or cloud uploads. It’s intentionally **minimal**.
 
 ---
 
@@ -87,7 +87,7 @@ MIT License
 
 ## 🙌 Contributions
 
-Contributions are welcome! If you'd like to help improve PlainCap, feel free to fork the repo and submit a pull request.
+Contributions are welcome! If you'd like to help improve PlainCapture, feel free to fork the repo and submit a pull request.
 
 ---
 
