@@ -149,23 +149,38 @@ export default class ScreenRecorder {
     };
 
     /**
-     * Stops the recording and triggers the file finalization process.
+     * Stops the recording and finalizes the video file.
      *
      * @returns {Promise<boolean>} Resolves with the success status of the save operation.
      */
     this.stop = () => {
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
+    
         const recordedDuration = recordingTimer.stop();
-
+    
+        let lastChunkPromise = Promise.resolve();
+    
+        mediaRecorder.ondataavailable = (event) => {
+          if (!event.data || event.data.size === 0) return;
+    
+          lastChunkPromise = event.data
+            .arrayBuffer()
+            .then(buffer => window.ipcRecorder.writeChunk(buffer));
+        };
+    
         mediaRecorder.onstop = async () => {
+    
+          // ensure final chunk finished sending
+          await lastChunkPromise;
+    
           const success = await finalizeFileSave(recordedDuration);
           resolve(success);
         };
-
+    
         mediaRecorder.stop();
       });
     };
-
+    
     /**
      * Pauses the current recording session and the internal timer.
      */

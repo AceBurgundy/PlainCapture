@@ -43,6 +43,7 @@ const createWindow = async () => {
       preload: join(__dirname, 'preload.js'),
     },
     resizable: false,
+    debug: true,
     icon: applicationIcon
   });
 
@@ -70,7 +71,9 @@ const createWindow = async () => {
 
 // Enable GPU-based video encoding and ignore driver blacklists for performance
 app.commandLine.appendSwitch('ignore-gpu-blacklist', 'true');
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoEncoder');
+app.commandLine.appendSwitch("enable-accelerated-video-encode");
+app.commandLine.appendSwitch("enable-zero-copy");
+app.commandLine.appendSwitch("enable-gpu-rasterization");
 
 /**
  * Event listener for Electron app initialization.

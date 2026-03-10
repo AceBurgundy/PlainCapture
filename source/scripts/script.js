@@ -11,13 +11,6 @@ const VIDEO_MIME_TYPE = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
   : "video/webm;codecs=vp8";
 
 /**
- * Shorthand for document.querySelector.
- * @param {string} selector - CSS selector.
- * @returns {Element | null}
- */
-const queryElement = (selector) => document.querySelector(selector);
-
-/**
  * Shorthand for document.getElementById.
  * @param {string} id - Element ID.
  * @returns {HTMLElement | null}
@@ -25,7 +18,7 @@ const queryElement = (selector) => document.querySelector(selector);
 const getElementById = (id) => document.getElementById(id);
 
 const microphoneToggle = getElementById("microphone-prompt");
-const previewVideoElement = queryElement("video");
+const previewVideoElement = getElementById("video");
 const sourcesDropdown = getElementById("sources");
 
 const startButton = getElementById("start");
@@ -45,36 +38,48 @@ let audioStream = null;
 let preferredSource = null;
 
 /**
- * Downscales a video stream using a canvas-based GPU pipeline.
+ * Downscales a MediaStream using an offscreen canvas to achieve the target
  *
  * @param {MediaStream} inputStream - The raw source stream.
  * @param {number} width - Target width.
  * @param {number} height - Target height.
  * @param {number} fps - Target frames per second.
- * @returns {Promise<MediaStream>} The downscaled MediaStream.
+ * @returns {MediaStream} The downscaled MediaStream.
  */
-async function downscaleStream(inputStream, width, height, fps) {
+function downscaleStream(inputStream, width, height, fps) {
   const videoElement = document.createElement("video");
 
   videoElement.srcObject = inputStream;
+  videoElement.autoplay = true;
   videoElement.muted = true;
   videoElement.playsInline = true;
+  
+  // Important for color accuracy
+  videoElement.style.colorSpace = "srgb";
+  videoElement.play();
 
-  await videoElement.play();
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
 
-  const offscreenCanvas = new OffscreenCanvas(width, height);
-  const context = offscreenCanvas.getContext("2d");
+  const context = canvas.getContext("2d", {
+    alpha: false,
+    desynchronized: true,
+    willReadFrequently: false,
+    colorSpace: "srgb"
+  });
 
-  const frameIntervalMilliseconds = 1000 / fps;
+  function draw() {
+    context.imageSmoothingEnabled = false;
+    context.filter = "saturate(1.4) contrast(1.05)";
+    // context.filter = "saturate(1.35) contrast(1.06) brightness(1.03)";
+    context.drawImage(videoElement, 0, 0, width, height);
+    videoElement.requestVideoFrameCallback(draw);
+  }
 
-  // Render video frames onto the canvas at the specified interval
-  setInterval(() => {
-    if (context) {
-      context.drawImage(videoElement, 0, 0, width, height);
-    }
-  }, frameIntervalMilliseconds);
+  draw();
 
-  return offscreenCanvas.captureStream(fps);
+  return canvas.captureStream(fps);
 }
 
 /**
@@ -123,6 +128,18 @@ function loadVideoSources() {
 
 loadVideoSources();
 
+
+if (availableSources) {
+  const firstSourceName = Object.keys(availableSources)[0];
+
+  if (firstSourceName) {
+    preferredSource = availableSources[firstSourceName].source;
+    sourcesDropdown.value = firstSourceName;
+
+    createRecorderInstance();
+  }
+}
+
 microphoneToggle.onclick = () => {
   microphoneToggle.classList.toggle("active");
 
@@ -153,9 +170,9 @@ async function createRecorderInstance() {
       mandatory: {
         chromeMediaSource: "desktop",
         chromeMediaSourceId: preferredSource.id,
-        maxWidth: 3840,
-        maxHeight: 2160,
-        maxFrameRate: 60
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: RECORD_FPS }
       }
     }
   };
@@ -188,7 +205,7 @@ async function createRecorderInstance() {
     makeToastNotification("Audio permission denied");
   }
 
-  const scaledVideoStream = await downscaleStream(
+  const scaledVideoStream = downscaleStream(
     videoStream,
     RECORD_WIDTH,
     RECORD_HEIGHT,
@@ -213,7 +230,7 @@ async function createRecorderInstance() {
 
   const recorderOptions = {
     mimeType: VIDEO_MIME_TYPE,
-    videoBitsPerSecond: 8000000 // 8 Mbps
+    videoBitsPerSecond: 20000000 // 20 Mbps for high-quality recording
   };
 
   screenRecorder = new ScreenRecorder(mixedStream, recorderOptions);
@@ -271,5 +288,11 @@ stopButton.onclick = async () => {
   }
   if (audioStream) {
     audioStream.getTracks().forEach((track) => track.stop());
+  }
+
+  if (preferredSource !== null) {
+    // Recreate recorder instance to reset state and allow new recordings without page refresh
+    // This prevents the preview screen to go black after clicking stop recording.
+    await createRecorderInstance();
   }
 };
