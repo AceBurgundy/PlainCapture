@@ -1,6 +1,6 @@
 /* eslint-disable linebreak-style */
 const { app, BrowserWindow } = require('electron');
-const { join, resolve } = require('path');
+const { path, join, resolve } = require('path');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -85,7 +85,9 @@ app.on('ready', () => {
   }
 
   // Load backend logic scripts
-  require('./scripts/view');
+  require(
+    require('path').join(__dirname, 'scripts', 'view.js')
+  );
 
   // Slight delay before window creation to ensure system resources are ready
   setTimeout(() => {

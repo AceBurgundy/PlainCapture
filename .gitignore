@@ -3,3 +3,12 @@ node_modules/
 
 # Ignore npm debug log files
 npm-debug.log*
+
+# Ignore build output directories
+out
+
+# Ignore coverage reports
+source/DirectoryContent.txt
+
+# Ignore log files
+DirectoryContent.txt
