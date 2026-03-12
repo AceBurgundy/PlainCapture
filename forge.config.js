@@ -1,8 +1,6 @@
 module.exports = {
   packagerConfig: {
-    asar: {
-      unpack: "node_modules/ffmpeg-static/**"
-    },
+    asar: true,
     icon: "./source/assets/logo/switch.png"
   },
 
