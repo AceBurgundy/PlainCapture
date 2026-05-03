@@ -74,7 +74,10 @@ function downscaleStream(inputStream, width, height, fps) {
     context.filter = "saturate(1.4) contrast(1.05)";
     // context.filter = "saturate(1.35) contrast(1.06) brightness(1.03)";
     context.drawImage(videoElement, 0, 0, width, height);
-    videoElement.requestVideoFrameCallback(draw);
+    
+    // Use requestAnimationFrame for smoother rendering and better performance
+    // Also prevents sections in the video to freeze
+    requestAnimationFrame(draw);
   }
 
   draw();
@@ -230,7 +233,8 @@ async function createRecorderInstance() {
 
   const recorderOptions = {
     mimeType: VIDEO_MIME_TYPE,
-    videoBitsPerSecond: 20000000 // 20 Mbps for high-quality recording
+    videoBitsPerSecond: 20000000, // 20 Mbps for high-quality recording
+    keyframeInterval: 3000 // Keyframe every 3 seconds
   };
 
   screenRecorder = new ScreenRecorder(mixedStream, recorderOptions);
